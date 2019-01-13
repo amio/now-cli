@@ -1,10 +1,10 @@
-import fs from 'fs';
 import path from 'path';
 import http from 'http';
+import execa from 'execa';
 
-// @ts-ignore
-import glob from '@now/build-utils/fs/glob';
+import httpProxy from 'http-proxy';
 import chalk from 'chalk';
+import chokidar from 'chokidar';
 
 import wait from '../../util/output/wait';
 import info from '../../util/output/info';
@@ -35,6 +35,8 @@ export default class DevServer {
   private status: DevServerStatus;
   private statusMessage = '';
   private builderDirectory = '';
+  private remoteDevUrl = '';
+  private watcher: any;
 
   constructor (cwd: string, port = 3000) {
     this.cwd = cwd;
@@ -47,7 +49,9 @@ export default class DevServer {
   logInfo (str: string) { console.log(info(str)) }
   logError (str: string) { console.log(error(str)) }
   logSuccess (str: string) { console.log(success(str))}
-  logHttp (msg?: string) { msg && console.log(`\n  >>> ${msg}\n`) }
+  logHttp (msg?: string) { msg && console.log(
+    `  ${chalk.greenBright('>>>')} ${msg}`
+  ) }
 
   start = async (port = 3000) => {
     const nowJson = readLocalConfig(this.cwd);
@@ -60,22 +64,46 @@ export default class DevServer {
           `dev server listning on port ${chalk.bold(String(port))}`
         );
 
-        if (nowJson.builds) {
-          try {
-            this.setStatusBusy('installing builders');
-            await this.installBuilders(nowJson.builds);
+        this.watcher = chokidar.watch(this.cwd, {
+          ignored: /node_modules/,
+          ignoreInitial: true
+        })
+        this.watcher.on('all', this.onChange);
 
-            this.setStatusBusy('building lambdas');
-            await this.buildLambdas(nowJson.builds);
-          } catch (err) {
-            reject(err);
-          }
-        }
+        await this.deploy();
 
-        this.setStatusIdle();
         resolve();
       });
     })
+  }
+
+  deploy = async () => {
+    console.time('> deployed');
+    this.setStatusBusy('deploying dev builds');
+    const stopSpinner = wait('deploying dev builds');
+
+    const { stdout } = await execa('now', { cwd: this.cwd });
+    this.remoteDevUrl = stdout;
+
+    stopSpinner();
+    this.setStatusIdle();
+    console.timeEnd('> deployed');
+  }
+
+  onChange = async (event: NodeJS.Events, _path: string) => {
+    // TODO: throttoling
+    if (this.isIgnoredPath(_path)) {
+      return
+    }
+
+    this.logInfo(`changed: ${_path}`);
+    await this.deploy();
+  }
+
+  isIgnoredPath (fullPath: string) {
+    const ignoredList = [/^\./];
+    const relativePath = path.relative(this.cwd, fullPath);
+    return ignoredList.find(match => match.test(relativePath));
   }
 
   setStatusIdle = () => {
@@ -89,57 +117,19 @@ export default class DevServer {
   }
 
   devServerHandler:HttpHandler = (req, res) => {
-    // const proxy = httpProxy.createProxyServer({});
+    const proxy = httpProxy.createProxyServer({
+      secure: false,
+      changeOrigin: true
+    });
 
     if (this.status === DevServerStatus.busy) {
       return res.end(`[busy] ${this.statusMessage}...`);
     }
 
     this.logHttp(req.url);
-    res.end('TODO: rebuild & invoke lambda.');
-  }
 
-  installBuilders = async (buildsConfig: BuildConfig[]) => {
-    const builders = buildsConfig
-      .map(build => build.use)
-      .filter(pkg => pkg !== '@now/static')
-      .concat('@now/build-utils');
-
-    for (const builder of builders) {
-      const stopSpinner = wait(`pulling ${builder}`);
-      await builderCache.install(this.builderDirectory, builder);
-      stopSpinner();
-    }
-  }
-
-  buildLambdas = async (buildsConfig: BuildConfig[]) => {
-    const files = await glob('**', this.cwd);
-
-    for (const build of buildsConfig) {
-      try {
-        console.log(`> build ${JSON.stringify(build)} with ${build.use}`);
-        const builder = builderCache.get(this.builderDirectory, build.use);
-
-        const entries = Object.values(await glob(build.src, this.cwd));
-
-        for (const entrypoint of entries) {
-          console.log(`> build ${JSON.stringify(entrypoint)}`);
-          const output = await builder.build({
-            files,
-            entrypoint,
-            workPath: this.cwd,
-            config: build.config
-          });
-        }
-      } catch (err) {
-        throw new NowError({
-          code: 'NOW_BUILDER_FAILURE',
-          message: `Failed building ${chalk.bold(build.src)} with ${chalk.bold(build.use)}`,
-          meta: {
-            stack: err.stack
-          }
-        });
-      }
+    if (this.remoteDevUrl) {
+      return proxy.web(req, res, { target: this.remoteDevUrl });
     }
   }
 }
