@@ -98,7 +98,7 @@ export default class DevServer {
         // Initial build. Not meant to invoke, but for speed up further builds.
         if (nowJson && nowJson.builds) {
           this.logDebug(`Initial build`);
-          await this.buildUserProject(nowJson.builds, this.cwd);
+          // await this.buildUserProject(nowJson.builds, this.cwd);
         }
 
         this.logSuccess('Initial build ready');
@@ -191,51 +191,65 @@ export default class DevServer {
       return res.end();
     }
 
-    // build source files to assets
-    this.logDebug('Start builders', nowJson.builds);
-    const assets = await this.buildUserProject(nowJson.builds, cwd);
-    this.logDebug('Built', Object.keys(assets));
-
-    // find asset responsible for dest
-    const asset = resolveDest(assets, dest);
-
-    if (asset === undefined) {
-      res.writeHead(404);
-      return res.end();
+    /**
+     * Temp workround for preview now-dev on nodejs projects
+     * TO BE REMOVED IN RELEASE
+     */
+    const ignores = createIgnoreList(cwd);
+    const files = await collectProjectFiles('**', cwd, ignores);
+    const source = resolveDest(files, dest) as FileFsRef;
+    if (source && fs.existsSync(source.fsPath)) {
+      if (/\.js$/.test(source.fsPath)) {
+        return require(source.fsPath)(req, res);
+      }
     }
+    return serveStaticFile(req, res, cwd);
 
-    // invoke asset
-    switch (asset.type) {
-      case 'FileFsRef':
-        return serveStaticFile(req, res, cwd);
+    // // build source files to assets
+    // this.logDebug('Start builders', nowJson.builds);
+    // const assets = await this.buildUserProject(nowJson.builds, cwd);
+    // this.logDebug('Built', Object.keys(assets));
 
-      case 'Lambda':
-        const fn = await createFunction({
-          Code: { ZipFile: asset.zipBuffer },
-          Handler: asset.handler,
-          Runtime: asset.runtime,
-          Environment: asset.environment
-        });
+    // // find asset responsible for dest
+    // const asset = resolveDest(assets, dest);
 
-        // const invoked = await fn({
-        //   InvocationType: 'RequestResponse',
-        //   Payload: JSON.stringify({
-        //     method: req.method,
-        //     path: req.url,
-        //     headers: req.headers,
-        //     encoding: 'base64',
-        //     body: 'eyJlaXlvIjp0cnVlfQ=='
-        //   })
-        // });
+    // if (asset === undefined) {
+    //   res.writeHead(404);
+    //   return res.end();
+    // }
 
-        // TODO: go on here after error resolved.
-        console.log(fn);
-        return res.end(`TODO: invoke ${fn}`);
+    // // invoke asset
+    // switch (asset.type) {
+    //   case 'FileFsRef':
+    //     return serveStaticFile(req, res, cwd);
 
-      default:
-        res.writeHead(500);
-        return res.end();
-    }
+    //   case 'Lambda':
+    //     const fn = await createFunction({
+    //       Code: { ZipFile: asset.zipBuffer },
+    //       Handler: asset.handler,
+    //       Runtime: asset.runtime,
+    //       Environment: asset.environment
+    //     });
+
+    //     // const invoked = await fn({
+    //     //   InvocationType: 'RequestResponse',
+    //     //   Payload: JSON.stringify({
+    //     //     method: req.method,
+    //     //     path: req.url,
+    //     //     headers: req.headers,
+    //     //     encoding: 'base64',
+    //     //     body: 'eyJlaXlvIjp0cnVlfQ=='
+    //     //   })
+    //     // });
+
+    //     // TODO: go on here after error resolved.
+    //     console.log(fn);
+    //     return res.end(`TODO: invoke ${fn}`);
+
+    //   default:
+    //     res.writeHead(500);
+    //     return res.end();
+    // }
   };
 
   /**
