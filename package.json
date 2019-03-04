@@ -124,10 +124,12 @@
     "@types/ansi-escapes": "3.0.0",
     "@types/ansi-regex": "4.0.0",
     "@types/async-retry": "1.2.1",
+    "@types/chokidar": "1.7.5",
     "@types/debug": "0.0.31",
     "@types/execa": "0.9.0",
     "@types/http-proxy": "1.16.2",
     "@types/load-json-file": "2.0.7",
+    "@types/lodash.throttle": "4.1.5",
     "@types/micro": "7.3.3",
     "@types/mkdirp": "0.5.2",
     "@types/mkdirp-promise": "5.0.0",
@@ -160,6 +162,7 @@
     "bytes": "3.0.0",
     "cache-or-tmp-directory": "1.0.0",
     "chalk": "2.3.1",
+    "chokidar": "2.1.2",
     "clipboardy": "1.1.4",
     "codecov": "3.1.0",
     "credit-card": "3.0.1",
@@ -192,6 +195,7 @@
     "jaro-winkler": "0.2.8",
     "jsonlines": "0.1.1",
     "load-json-file": "3.0.0",
+    "lodash.throttle": "4.1.1",
     "micro": "9.1.2",
     "mkdirp": "0.5.1",
     "mkdirp-promise": "5.0.1",
@@ -229,6 +233,5 @@
     "which-promise": "1.0.0",
     "write-json-file": "2.2.0",
     "yarn": "1.13.0"
-  },
-  "dependencies": {}
+  }
 }

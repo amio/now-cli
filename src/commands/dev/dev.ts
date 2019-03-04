@@ -4,12 +4,15 @@ import { Output } from '../../util/output';
 import { NowContext } from '../../types';
 
 import DevServer from './lib/dev-server';
+import DevWatcher from './lib/dev-watcher';
 
 type Options = {
-  '--debug': boolean;
   '--port': number;
-  '-d': boolean;
   '-p': number;
+  '--debug': boolean;
+  '-d': boolean;
+  '--cloud': boolean;
+  '-c': boolean;
 };
 
 export default async function dev(
@@ -22,10 +25,13 @@ export default async function dev(
   const cwd = path.join(process.cwd(), dir);
   const port = opts['-p'] || opts['--port'];
   const debug = Boolean(opts['-d'] || opts['--debug']);
+  const cloud = Boolean(opts['-c'] || opts['--cloud']);
 
-  const devServer = new DevServer(cwd, {
-    debug
-  });
-
-  await devServer.start(port);
+  if (cloud) {
+    const devWatcher = new DevWatcher(cwd, { debug });
+    await devWatcher.start();
+  } else {
+    const devServer = new DevServer(cwd, { debug });
+    await devServer.start(port);
+  }
 }
