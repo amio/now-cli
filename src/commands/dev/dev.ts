@@ -28,7 +28,7 @@ export default async function dev(
   const cloud = Boolean(opts['-c'] || opts['--cloud']);
 
   if (cloud) {
-    const devWatcher = new DevWatcher(cwd, { debug });
+    const devWatcher = new DevWatcher(cwd, { ctx, debug, output });
     await devWatcher.start();
   } else {
     const devServer = new DevServer(cwd, { debug });

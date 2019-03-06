@@ -1,6 +1,8 @@
 import http from 'http'
 import FileFsRef from '@now/build-utils/file-fs-ref';
 import { LambdaRuntime } from '@now/build-utils';
+import { Output } from '../../../util/output';
+import { NowContext } from '../../../types';
 
 export enum DevServerStatus {
   busy,
@@ -10,6 +12,12 @@ export enum DevServerStatus {
 
 export interface DevServerOptions {
   debug: boolean;
+}
+
+export interface DevWatcherOptions {
+  ctx: NowContext;
+  debug: boolean;
+  output: Output;
 }
 
 export interface BuildConfig {
