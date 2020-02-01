@@ -109,6 +109,7 @@ function validateResponseHeaders(t, res) {
 async function exec(directory, args = []) {
   return execa(binaryPath, ['dev', directory, ...args], {
     reject: false,
+    env: { __NOW_SKIP_DEV_COMMAND: 1 },
   });
 }
 
@@ -161,6 +162,7 @@ async function testFixture(directory, opts = {}, args = []) {
       detached: true,
       stdio: 'pipe',
       ...opts,
+      env: { ...opts.env, __NOW_SKIP_DEV_COMMAND: 1 },
     }
   );
 
@@ -223,7 +225,9 @@ function testFixtureStdio(directory, fn) {
       let stderr = '';
       let printedOutput = false;
 
-      dev = execa(binaryPath, ['dev', dir, '-l', port]);
+      dev = execa(binaryPath, ['dev', dir, '-l', port], {
+        env: { __NOW_SKIP_DEV_COMMAND: 1 },
+      });
 
       dev.stdout.on('data', data => {
         stdoutList.push(data);
@@ -1363,13 +1367,40 @@ test('[now dev] 25-nextjs-src-dir', async t => {
 });
 
 test(
+  '[now dev] Use `@now/python` with Flask requirements.txt',
+  testFixtureStdio('python-flask', async (t, port) => {
+    const name = 'Alice';
+    const year = new Date().getFullYear();
+    const user = await fetchWithRetry(
+      `http://localhost:${port}/api/user?name=${name}`
+    );
+    const date = await fetchWithRetry(`http://localhost:${port}/api/date`);
+    const ext = await fetchWithRetry(`http://localhost:${port}/api/date.py`);
+
+    validateResponseHeaders(t, user);
+    validateResponseHeaders(t, date);
+    validateResponseHeaders(t, ext);
+
+    t.regex(await user.text(), new RegExp(`Hello ${name}`));
+    t.regex(await date.text(), new RegExp(`Current date is ${year}`));
+    t.regex(await ext.text(), new RegExp(`Current date is ${year}`));
+  })
+);
+
+test(
   '[now dev] Use runtime from the functions property',
   testFixtureStdio('custom-runtime', async (t, port) => {
-    const response = await fetchWithRetry(`http://localhost:${port}/api/user`);
+    const extensionless = await fetchWithRetry(
+      `http://localhost:${port}/api/user`
+    );
+    const extension = await fetchWithRetry(
+      `http://localhost:${port}/api/user.sh`
+    );
 
-    validateResponseHeaders(t, response);
+    validateResponseHeaders(t, extensionless);
+    validateResponseHeaders(t, extension);
 
-    const body = await response.text();
-    t.regex(body, /Hello, from Bash!/gm);
+    t.regex(await extensionless.text(), /Hello, from Bash!/gm);
+    t.regex(await extension.text(), /Hello, from Bash!/gm);
   })
 );
